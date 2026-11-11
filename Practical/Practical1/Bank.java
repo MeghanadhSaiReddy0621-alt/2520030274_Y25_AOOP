@@ -1,145 +1,6 @@
-import java.time.LocalDateTime;
+
 import java.util.UUID;
-
-
-class Money {
-    private final long amountInPaise;
-    private final String currency;
-
-    public Money(long a, String c) {
-        if (a < 0) {
-            throw new IllegalArgumentException("Amount cannot be negative");
-        }
-        if (c == null || c.isBlank()) {
-            throw new IllegalArgumentException("Invalid currency");
-        }
-
-        this.amountInPaise = a;
-        this.currency = c;
-    }
-
-    public Money add(Money other) {
-        checkCurrency(other);
-        return new Money(
-            Math.addExact(amountInPaise, other.amountInPaise),
-            currency
-        );
-    }
-
-    public Money subtract(Money other) {
-        checkCurrency(other);
-        return new Money(
-            Math.subtractExact(amountInPaise, other.amountInPaise),
-            currency
-        );
-    }
-
-    public boolean isPositive() {
-        return amountInPaise > 0;
-    }
-
-    private void checkCurrency(Money other) {
-        if (other == null || !currency.equals(other.currency)) {
-            throw new IllegalArgumentException("Currency mismatch");
-        }
-    }
-
-    public long getAmountInPaise() {
-        return amountInPaise;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public String toString() {
-        return currency + " " + (amountInPaise / 100.0);
-    }
-}
-
-
-
-enum AccountStatus {
-    ACTIVE, FROZEN, CLOSED
-}
-
-
-
-class BankAccount {
-    private final String accountNumber;
-    private Money balance;
-    private final Money overdraftLimit;
-    private AccountStatus status;
-
-    public BankAccount(String accountNumber, Money overdraftLimit) {
-        this.accountNumber = accountNumber;
-        this.overdraftLimit = overdraftLimit;
-        this.balance = new Money(0, overdraftLimit.getCurrency());
-        this.status = AccountStatus.ACTIVE;
-    }
-
-    public void deposit(Money amount) {
-        if (status != AccountStatus.ACTIVE)
-            throw new IllegalStateException("Account is not active");
-
-        if (!amount.isPositive())
-            throw new IllegalArgumentException("Invalid deposit");
-
-        balance = balance.add(amount);
-        System.out.println("Deposited: " + amount);
-    }
-
-    public void withdraw(Money amount) {
-        if (status != AccountStatus.ACTIVE)
-            throw new IllegalStateException("Account is not active");
-
-        if (!amount.isPositive())
-            throw new IllegalArgumentException("Invalid withdrawal");
-
-        Money newBalance = balance.subtract(amount);
-
-        if (newBalance.getAmountInPaise() < -overdraftLimit.getAmountInPaise())
-            throw new IllegalArgumentException("Overdraft limit exceeded");
-
-        balance = newBalance;
-        System.out.println("Withdrawn: " + amount);
-    }
-
-    public void freeze() {
-        if (status != AccountStatus.ACTIVE)
-            throw new IllegalStateException("Account is not active");
-
-        status = AccountStatus.FROZEN;
-    }
-
-    public void unfreeze() {
-        if (status != AccountStatus.FROZEN)
-            throw new IllegalStateException("Account is not frozen");
-
-        status = AccountStatus.ACTIVE;
-    }
-
-    public void close() {
-        if (status != AccountStatus.ACTIVE || balance.getAmountInPaise() != 0)
-            throw new IllegalStateException("Cannot close account");
-
-        status = AccountStatus.CLOSED;
-    }
-
-    public Money getBalance() {
-        return balance;
-    }
-
-    public String getAccountNumber() {
-        return accountNumber;
-    }
-
-    public AccountStatus getStatus() {
-        return status;
-    }
-}
-
-
+import java.time.LocalDateTime;
 
 class LedgerEntry {
     private final String transactionId;
@@ -147,9 +8,9 @@ class LedgerEntry {
     private final Money amount;
     private final String timestamp;
 
-    public LedgerEntry(String type, Money amount) {
+    public LedgerEntry(String transactionType, Money amount) {
         this.transactionId = UUID.randomUUID().toString();
-        this.transactionType = type;
+        this.transactionType = transactionType;
         this.amount = amount;
         this.timestamp = LocalDateTime.now().toString();
     }
@@ -178,8 +39,6 @@ class LedgerEntry {
     }
 }
 
-
-
 class FundTransfer {
     private final String transferId;
     private final BankAccount source;
@@ -194,22 +53,27 @@ class FundTransfer {
     }
 
     public void transfer() {
-        if (source == null || destination == null || amount == null)
+        if (source == null || destination == null || amount == null) {
             throw new IllegalArgumentException("Invalid transfer details");
+        }
 
-        if (source == destination)
-            throw new IllegalArgumentException("Cannot transfer to same account");
+        if (source == destination) {
+            throw new IllegalArgumentException("Cannot transfer to the same account");
+        }
 
-        if (!amount.isPositive())
-            throw new IllegalArgumentException("Invalid transfer amount");
+        if (!amount.isPositive()) {
+            throw new IllegalArgumentException("Transfer amount must be positive");
+        }
 
         if (source.getStatus() != AccountStatus.ACTIVE ||
-            destination.getStatus() != AccountStatus.ACTIVE)
+            destination.getStatus() != AccountStatus.ACTIVE) {
             throw new IllegalStateException("Both accounts must be active");
+        }
 
         if (!source.getBalance().getCurrency().equals(amount.getCurrency()) ||
-            !destination.getBalance().getCurrency().equals(amount.getCurrency()))
+            !destination.getBalance().getCurrency().equals(amount.getCurrency())) {
             throw new IllegalArgumentException("Currency mismatch");
+        }
 
         source.withdraw(amount);
         destination.deposit(amount);
@@ -219,26 +83,27 @@ class FundTransfer {
     }
 }
 
-
-
-public class Bank {
+public class Main {
     public static void main(String[] args) {
 
         Money overdraft = new Money(500000, "INR");
+        Money depositAmount = new Money(1000000, "INR");
+        Money withdrawAmount = new Money(200000, "INR");
+        Money transferAmount = new Money(300000, "INR");
 
-        BankAccount account1 = new BankAccount("1001", overdraft);
-        BankAccount account2 = new BankAccount("1002", overdraft);
+        BankAccount account1 =
+            new BankAccount("1001", "INR", overdraft);
 
-        account1.deposit(new Money(1000000, "INR"));
+        BankAccount account2 =
+            new BankAccount("1002", "INR", overdraft);
+
+        account1.deposit(depositAmount);
         account2.deposit(new Money(500000, "INR"));
 
-        account1.withdraw(new Money(200000, "INR"));
+        account1.withdraw(withdrawAmount);
 
-        FundTransfer transfer = new FundTransfer(
-            account1,
-            account2,
-            new Money(300000, "INR")
-        );
+        FundTransfer transfer =
+            new FundTransfer(account1, account2, transferAmount);
 
         transfer.transfer();
 
@@ -251,10 +116,8 @@ public class Bank {
 
         System.out.println("Account Status: " + account1.getStatus());
 
-        LedgerEntry entry = new LedgerEntry(
-            "DEPOSIT",
-            new Money(1000000, "INR")
-        );
+        LedgerEntry entry =
+            new LedgerEntry("DEPOSIT", depositAmount);
 
         System.out.println("\n----- LEDGER ENTRY -----");
         entry.display();
